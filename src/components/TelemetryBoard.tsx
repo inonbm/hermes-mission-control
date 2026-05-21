@@ -14,34 +14,46 @@ import type { AgentAction, TelemetryCard } from '../lib/types';
 
 type GraphAgent = 'CEO' | 'Developer' | 'QA';
 
-interface Props {
-  cards: TelemetryCard[];
-}
-
-interface FlowNodeData extends Record<string, unknown> {
+type FlowNodeData = {
   agentName: GraphAgent;
   latestAction: AgentAction | null;
   latestContent: string;
   latestAt: string | null;
   latestTask: string;
   eventCount: number;
-}
+};
 
-interface FlowEdgeData extends Record<string, unknown> {
+type FlowEdgeData = {
   label: string;
+};
+
+interface Props {
+  cards: TelemetryCard[];
 }
 
 const agentOrder: GraphAgent[] = ['CEO', 'Developer', 'QA'];
 const agentPositions: Record<GraphAgent, { x: number; y: number }> = {
-  CEO: { x: 72, y: 96 },
-  Developer: { x: 388, y: 24 },
-  QA: { x: 704, y: 160 },
+  CEO: { x: 64, y: 92 },
+  Developer: { x: 392, y: 28 },
+  QA: { x: 720, y: 160 },
 };
 
 const nodeTone: Record<GraphAgent, { border: string; glow: string; badge: string }> = {
-  CEO: { border: 'border-sky-400/30', glow: 'shadow-[0_0_40px_rgba(56,189,248,0.18)]', badge: 'bg-sky-500/15 text-sky-100' },
-  Developer: { border: 'border-emerald-400/30', glow: 'shadow-[0_0_40px_rgba(52,211,153,0.16)]', badge: 'bg-emerald-500/15 text-emerald-100' },
-  QA: { border: 'border-violet-400/30', glow: 'shadow-[0_0_40px_rgba(167,139,250,0.18)]', badge: 'bg-violet-500/15 text-violet-100' },
+  CEO: {
+    border: 'border-sky-400/30',
+    glow: 'shadow-[0_0_42px_rgba(56,189,248,0.18)]',
+    badge: 'bg-sky-500/15 text-sky-100',
+  },
+  Developer: {
+    border: 'border-emerald-400/30',
+    glow: 'shadow-[0_0_42px_rgba(52,211,153,0.16)]',
+    badge: 'bg-emerald-500/15 text-emerald-100',
+  },
+  QA: {
+    border: 'border-violet-400/30',
+    glow: 'shadow-[0_0_42px_rgba(167,139,250,0.18)]',
+    badge: 'bg-violet-500/15 text-violet-100',
+  },
 };
 
 const actionTone: Record<AgentAction, { chip: string; ring: string }> = {
@@ -53,7 +65,7 @@ const actionTone: Record<AgentAction, { chip: string; ring: string }> = {
 export function TelemetryBoard({ cards }: Props) {
   const model = useMemo(() => buildFlowModel(cards), [cards]);
   const latestEvent = cards[0] ?? null;
-  const activeAgents = new Set(cards.filter((card) => toGraphAgent(card.agentName) !== null).map((card) => card.agentName)).size;
+  const activeAgents = new Set(cards.map((card) => toGraphAgent(card.agentName)).filter(Boolean)).size;
 
   return (
     <section className="rounded-3xl border border-white/10 bg-slate-950/75 p-4 shadow-glow backdrop-blur-xl sm:p-6">
@@ -81,8 +93,8 @@ export function TelemetryBoard({ cards }: Props) {
 
       <div className="h-[760px] overflow-hidden rounded-3xl border border-white/10 bg-slate-950/80">
         <ReactFlow
-          nodes={model.nodes as any}
-          edges={model.edges as any}
+          nodes={model.nodes}
+          edges={model.edges}
           nodeTypes={nodeTypes}
           fitView
           nodesDraggable={false}
@@ -111,9 +123,9 @@ export function TelemetryBoard({ cards }: Props) {
   );
 }
 
-function buildFlowModel(cards: TelemetryCard[]): { nodes: any[]; edges: any[] } {
+function buildFlowModel(cards: TelemetryCard[]): { nodes: Array<any>; edges: Array<any> } {
   const latestByAgent = new Map<GraphAgent, TelemetryCard>();
-  const recentHandoffs = new Map<string, TelemetryCard>();
+  const latestHandoffByPair = new Map<string, TelemetryCard>();
 
   for (const card of cards) {
     const source = toGraphAgent(card.agentName);
@@ -126,13 +138,14 @@ function buildFlowModel(cards: TelemetryCard[]): { nodes: any[]; edges: any[] } 
     }
 
     if (card.action === 'Handoff') {
-      const target = resolveHandoffTarget(card);
+      const target = resolveHandoffTarget(card, source);
       if (!target || target === source) {
         continue;
       }
+
       const key = `${source}->${target}`;
-      if (!recentHandoffs.has(key)) {
-        recentHandoffs.set(key, card);
+      if (!latestHandoffByPair.has(key)) {
+        latestHandoffByPair.set(key, card);
       }
     }
   }
@@ -140,9 +153,7 @@ function buildFlowModel(cards: TelemetryCard[]): { nodes: any[]; edges: any[] } 
   const nodes = agentOrder.map((agentName) => {
     const latest = latestByAgent.get(agentName) ?? null;
     const eventCount = cards.filter((card) => toGraphAgent(card.agentName) === agentName).length;
-    const tone = nodeTone[agentName];
     const action = latest?.action ?? null;
-    const latestActionLabel = action ? `${action}` : 'Idle';
 
     return {
       id: agentName,
@@ -159,26 +170,26 @@ function buildFlowModel(cards: TelemetryCard[]): { nodes: any[]; edges: any[] } 
       sourcePosition: Position.Right,
       targetPosition: Position.Left,
       style: {
-        width: 240,
+        width: 250,
         background: 'transparent',
         border: 'none',
       },
-      className: tone.glow,
-      selected: false,
+      className: nodeTone[agentName].glow,
       draggable: false,
-      deletable: false,
       selectable: false,
+      deletable: false,
       focusable: false,
       hidden: false,
       zIndex: 2,
-      ariaLabel: `${agentName} node ${latestActionLabel}`,
+      ariaLabel: `${agentName} node ${action ?? 'Idle'}`,
     };
   });
 
-  const edges = Array.from(recentHandoffs.entries()).map(([key, card]) => {
+  const edges = Array.from(latestHandoffByPair.entries()).map(([key, card]) => {
     const source = toGraphAgent(card.agentName) ?? 'CEO';
-    const target = resolveHandoffTarget(card) ?? 'QA';
+    const target = resolveHandoffTarget(card, source) ?? 'QA';
     const tone = edgeTone(source, target);
+
     return {
       id: `${card.id}-${key}`,
       source,
@@ -218,8 +229,8 @@ function toGraphAgent(agentName: string): GraphAgent | null {
   return agentName === 'CEO' || agentName === 'Developer' || agentName === 'QA' ? agentName : null;
 }
 
-function resolveHandoffTarget(card: TelemetryCard): GraphAgent | null {
-  if (card.handoffTo && toGraphAgent(card.handoffTo) !== null) {
+function resolveHandoffTarget(card: TelemetryCard, source?: GraphAgent): GraphAgent | null {
+  if (card.handoffTo && toGraphAgent(card.handoffTo)) {
     return toGraphAgent(card.handoffTo);
   }
 
@@ -231,7 +242,10 @@ function resolveHandoffTarget(card: TelemetryCard): GraphAgent | null {
     }
   }
 
-  const source = toGraphAgent(card.agentName);
+  if (!source) {
+    source = toGraphAgent(card.agentName) ?? undefined;
+  }
+
   if (!source) {
     return null;
   }
@@ -243,9 +257,11 @@ function edgeTone(source: GraphAgent, target: GraphAgent): { stroke: string } {
   if (source === 'CEO' || target === 'CEO') {
     return { stroke: '#38bdf8' };
   }
+
   if (source === 'Developer' || target === 'Developer') {
     return { stroke: '#34d399' };
   }
+
   return { stroke: '#a78bfa' };
 }
 
@@ -258,10 +274,9 @@ function MetricPill({ label, value, isText = false }: { label: string; value: nu
   );
 }
 
-function AgentNode({ data }: any) {
-  const nodeData = data as FlowNodeData;
-  const tone = nodeTone[nodeData.agentName];
-  const latestAction = nodeData.latestAction ? actionTone[nodeData.latestAction] : null;
+function AgentNode({ data }: { data: FlowNodeData }) {
+  const tone = nodeTone[data.agentName];
+  const latestAction = data.latestAction ? actionTone[data.latestAction] : null;
 
   return (
     <div className={`relative rounded-3xl border ${tone.border} bg-slate-900/95 p-4 text-slate-100 shadow-2xl backdrop-blur-xl`}>
@@ -271,9 +286,9 @@ function AgentNode({ data }: any) {
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-[10px] uppercase tracking-[0.3em] text-slate-400">Agent node</p>
-          <h3 className="mt-1 text-xl font-semibold text-white">{nodeData.agentName}</h3>
+          <h3 className="mt-1 text-xl font-semibold text-white">{data.agentName}</h3>
         </div>
-        <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${tone.badge}`}>{nodeData.eventCount} events</span>
+        <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${tone.badge}`}>{data.eventCount} events</span>
       </div>
 
       <div className="mt-4 space-y-3">
@@ -281,15 +296,15 @@ function AgentNode({ data }: any) {
           <div className="flex items-center justify-between gap-3">
             <span className="text-xs uppercase tracking-[0.2em] text-slate-400">State</span>
             <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${latestAction ? latestAction.chip : 'bg-slate-500/15 text-slate-200'}`}>
-              {nodeData.latestAction ?? 'Idle'}
+              {data.latestAction ?? 'Idle'}
             </span>
           </div>
-          <p className="mt-2 text-sm leading-6 text-slate-200">{nodeData.latestContent}</p>
+          <p className="mt-2 text-sm leading-6 text-slate-200">{data.latestContent}</p>
         </div>
 
         <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-400">
-          <span>Task: {nodeData.latestTask}</span>
-          <span>{nodeData.latestAt ? formatTimestamp(nodeData.latestAt) : 'pending'}</span>
+          <span>Task: {data.latestTask}</span>
+          <span>{data.latestAt ? formatTimestamp(data.latestAt) : 'pending'}</span>
         </div>
       </div>
     </div>
