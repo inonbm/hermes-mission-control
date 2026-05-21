@@ -17,6 +17,7 @@ export interface AgentTelemetryRow {
   action: AgentAction;
   content: string;
   created_at: string;
+  handoff_to?: AgentName | null;
   agency_tasks?: AgencyTask | AgencyTask[] | null;
 }
 
@@ -28,5 +29,6 @@ export interface TelemetryCard {
   agentName: AgentName;
   action: AgentAction;
   content: string;
+  handoffTo?: AgentName | null;
   createdAt: string;
 }

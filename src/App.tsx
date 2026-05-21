@@ -30,7 +30,7 @@ export default function App() {
               חדר בקרה פנימי, עצמאי ומבודד לסוכני Hermes
             </h1>
             <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-300 sm:text-base">
-              לוח חי המציג את מצב הסוכנים, העברות משימה וטלמטריית זמן אמת מתוך Supabase.
+              רשת צמתים חיה המציגה את סוכני Hermes, אירועי טלמטריה, וקווי Handoff מונפשים מתוך Supabase Realtime.
             </p>
           </div>
 
@@ -67,7 +67,7 @@ export default function App() {
       <TelemetryBoard cards={cards} />
 
       <footer className="pb-2 text-center text-xs text-slate-500">
-        Built for secure operational awareness and live handoff visibility.
+        Built for secure operational awareness and live graph visibility.
       </footer>
     </main>
   );

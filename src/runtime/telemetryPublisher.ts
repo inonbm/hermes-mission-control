@@ -6,6 +6,7 @@ export interface TelemetryEvent {
   agentName: AgentName;
   action: AgentAction;
   content: string;
+  handoffTo?: AgentName | null;
 }
 
 export interface TelemetryPublisherConfig {
@@ -42,44 +43,66 @@ export function createTelemetryPublisher(config: TelemetryPublisherConfig): Tele
 
   return {
     record: (event) => enqueueTelemetryInsert(client, event),
-    recordStatusChange: async ({ taskId, agentName, action, content }) => {
-      await enqueueTelemetryInsert(client, {
+    recordStatusChange: ({ taskId, projectName, status, agentName, action, content }) =>
+      enqueueTelemetryInsert(client, {
         taskId,
         agentName,
         action,
-        content,
-      });
-    },
-    recordHandoff: async ({ taskId, from, to, content }) => {
-      await enqueueTelemetryInsert(client, {
+        content: formatTelemetryContent(content, { projectName, status }),
+      }),
+    recordHandoff: ({ taskId, from, to, content }) =>
+      enqueueTelemetryInsert(client, {
         taskId,
         agentName: from,
         action: 'Handoff',
-        content: `${content} | handoff_to=${to}`,
-      });
-    },
+        handoffTo: to,
+        content: formatTelemetryContent(content, { handoffTo: to }),
+      }),
   };
 }
 
-async function enqueueTelemetryInsert(client: SupabaseClient, event: TelemetryEvent): Promise<void> {
-  queueMicrotask(() => {
-    void client
-      .from('agent_telemetry')
-      .insert({
-        task_id: event.taskId,
-        agent_name: event.agentName,
-        action: event.action,
-        content: event.content,
-      })
-      .then(
-        ({ error }) => {
-          if (error) {
-            console.warn('[Hermes Mission Control] telemetry insert failed', error.message);
-          }
-        },
-        (error: unknown) => {
-          console.warn('[Hermes Mission Control] telemetry insert failed', error);
-        },
-      );
+function formatTelemetryContent(
+  content: string,
+  details: { projectName?: string; status?: AgencyTaskStatus; handoffTo?: AgentName },
+): string {
+  const parts = [content.trim()];
+  if (details.projectName) {
+    parts.push(`project=${details.projectName}`);
+  }
+  if (details.status) {
+    parts.push(`status=${details.status}`);
+  }
+  if (details.handoffTo) {
+    parts.push(`handoff_to=${details.handoffTo}`);
+  }
+  return parts.filter(Boolean).join(' | ');
+}
+
+function enqueueTelemetryInsert(client: SupabaseClient, event: TelemetryEvent): Promise<void> {
+  return new Promise((resolve) => {
+    queueMicrotask(() => {
+      void client
+        .from('agent_telemetry')
+        .insert({
+          task_id: event.taskId,
+          agent_name: event.agentName,
+          action: event.action,
+          content: event.content,
+          handoff_to: event.handoffTo ?? null,
+        })
+        .then(
+          (result: { error: { message?: string } | null }) => {
+            const error = result.error;
+            if (error) {
+              console.warn('[Hermes Mission Control] telemetry insert failed', error.message);
+            }
+            resolve();
+          },
+          (error: unknown) => {
+            console.warn('[Hermes Mission Control] telemetry insert failed', error);
+            resolve();
+          },
+        );
+    });
   });
 }
