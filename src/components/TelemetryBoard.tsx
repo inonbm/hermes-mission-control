@@ -8,11 +8,15 @@ import {
   MiniMap,
   Position,
   ReactFlow,
+  type Edge,
+  type Node,
+  type NodeProps,
+  type NodeTypes,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import type { AgentAction, TelemetryCard } from '../lib/types';
+import type { AgentAction, ReviewFocus, TelemetryCard } from '../lib/types';
 
-type GraphAgent = 'CEO' | 'Developer' | 'QA';
+type GraphAgent = 'CEO' | 'frontend_designer' | 'Developer' | 'QA';
 
 type FlowNodeData = {
   agentName: GraphAgent;
@@ -31,28 +35,38 @@ interface Props {
   cards: TelemetryCard[];
 }
 
-const agentOrder: GraphAgent[] = ['CEO', 'Developer', 'QA'];
+const agentOrder: GraphAgent[] = ['CEO', 'frontend_designer', 'Developer', 'QA'];
 const agentPositions: Record<GraphAgent, { x: number; y: number }> = {
-  CEO: { x: 64, y: 92 },
-  Developer: { x: 392, y: 28 },
-  QA: { x: 720, y: 160 },
+  CEO: { x: 48, y: 108 },
+  frontend_designer: { x: 322, y: 24 },
+  Developer: { x: 610, y: 108 },
+  QA: { x: 894, y: 196 },
 };
 
-const nodeTone: Record<GraphAgent, { border: string; glow: string; badge: string }> = {
+const nodeTone: Record<GraphAgent, { border: string; glow: string; badge: string; dot: string }> = {
   CEO: {
     border: 'border-sky-400/30',
     glow: 'shadow-[0_0_42px_rgba(56,189,248,0.18)]',
     badge: 'bg-sky-500/15 text-sky-100',
+    dot: '#38bdf8',
+  },
+  frontend_designer: {
+    border: 'border-amber-300/30',
+    glow: 'shadow-[0_0_42px_rgba(251,191,36,0.18)]',
+    badge: 'bg-amber-500/15 text-amber-100',
+    dot: '#f59e0b',
   },
   Developer: {
     border: 'border-emerald-400/30',
     glow: 'shadow-[0_0_42px_rgba(52,211,153,0.16)]',
     badge: 'bg-emerald-500/15 text-emerald-100',
+    dot: '#34d399',
   },
   QA: {
     border: 'border-violet-400/30',
     glow: 'shadow-[0_0_42px_rgba(167,139,250,0.18)]',
     badge: 'bg-violet-500/15 text-violet-100',
+    dot: '#a78bfa',
   },
 };
 
@@ -62,10 +76,30 @@ const actionTone: Record<AgentAction, { chip: string; ring: string }> = {
   Handoff: { chip: 'bg-violet-500/15 text-violet-100', ring: 'ring-violet-400/20' },
 };
 
+const reviewFocusOrder: ReviewFocus[] = ['Security', 'Logic & Bugs', 'Guidelines', 'Redundancy', 'Maintainability'];
+const reviewTone: Record<ReviewFocus, { border: string; chip: string }> = {
+  Security: { border: 'border-rose-400/25', chip: 'bg-rose-500/15 text-rose-100' },
+  'Logic & Bugs': { border: 'border-amber-400/25', chip: 'bg-amber-500/15 text-amber-100' },
+  Guidelines: { border: 'border-sky-400/25', chip: 'bg-sky-500/15 text-sky-100' },
+  Redundancy: { border: 'border-fuchsia-400/25', chip: 'bg-fuchsia-500/15 text-fuchsia-100' },
+  Maintainability: { border: 'border-emerald-400/25', chip: 'bg-emerald-500/15 text-emerald-100' },
+};
+
 export function TelemetryBoard({ cards }: Props) {
   const model = useMemo(() => buildFlowModel(cards), [cards]);
   const latestEvent = cards[0] ?? null;
   const activeAgents = new Set(cards.map((card) => toGraphAgent(card.agentName)).filter(Boolean)).size;
+  const latestReviewGroupId = findLatestReviewGroupId(cards);
+  const reviewCards = useMemo(() => {
+    if (!latestReviewGroupId) {
+      return [];
+    }
+
+    return cards
+      .filter((card) => card.fanoutGroupId === latestReviewGroupId)
+      .filter((card) => card.reviewFocus !== null && card.reviewFocus !== undefined)
+      .sort((a, b) => reviewFocusOrder.indexOf(a.reviewFocus as ReviewFocus) - reviewFocusOrder.indexOf(b.reviewFocus as ReviewFocus));
+  }, [cards, latestReviewGroupId]);
 
   return (
     <section className="rounded-3xl border border-white/10 bg-slate-950/75 p-4 shadow-glow backdrop-blur-xl sm:p-6">
@@ -91,11 +125,13 @@ export function TelemetryBoard({ cards }: Props) {
         {latestEvent ? <span>Latest action: {latestEvent.action}</span> : null}
       </div>
 
-      <div className="h-[760px] overflow-hidden rounded-3xl border border-white/10 bg-slate-950/80">
+      {reviewCards.length > 0 ? <ReviewSwarm cards={reviewCards} /> : null}
+
+      <div className="mt-4 h-[760px] overflow-hidden rounded-3xl border border-white/10 bg-slate-950/80">
         <ReactFlow
           nodes={model.nodes}
           edges={model.edges}
-          nodeTypes={nodeTypes}
+          nodeTypes={nodeTypes as any}
           fitView
           nodesDraggable={false}
           nodesConnectable={false}
@@ -109,10 +145,7 @@ export function TelemetryBoard({ cards }: Props) {
         >
           <Background variant={BackgroundVariant.Dots} gap={24} size={1} color="rgba(148, 163, 184, 0.18)" />
           <MiniMap
-            nodeColor={(node) => {
-              const agent = node.id as GraphAgent;
-              return agent === 'CEO' ? '#38bdf8' : agent === 'Developer' ? '#34d399' : '#a78bfa';
-            }}
+            nodeColor={(node) => nodeTone[(node.id as GraphAgent)]?.dot ?? '#64748b'}
             maskColor="rgba(2, 6, 23, 0.7)"
             style={{ background: 'rgba(15, 23, 42, 0.75)', border: '1px solid rgba(255,255,255,0.08)' }}
           />
@@ -123,7 +156,7 @@ export function TelemetryBoard({ cards }: Props) {
   );
 }
 
-function buildFlowModel(cards: TelemetryCard[]): { nodes: Array<any>; edges: Array<any> } {
+function buildFlowModel(cards: TelemetryCard[]): { nodes: Node<FlowNodeData>[]; edges: Edge<FlowEdgeData>[] } {
   const latestByAgent = new Map<GraphAgent, TelemetryCard>();
   const latestHandoffByPair = new Map<string, TelemetryCard>();
 
@@ -170,7 +203,7 @@ function buildFlowModel(cards: TelemetryCard[]): { nodes: Array<any>; edges: Arr
       sourcePosition: Position.Right,
       targetPosition: Position.Left,
       style: {
-        width: 250,
+        width: 262,
         background: 'transparent',
         border: 'none',
       },
@@ -182,7 +215,7 @@ function buildFlowModel(cards: TelemetryCard[]): { nodes: Array<any>; edges: Arr
       hidden: false,
       zIndex: 2,
       ariaLabel: `${agentName} node ${action ?? 'Idle'}`,
-    };
+    } satisfies Node<FlowNodeData>;
   });
 
   const edges = Array.from(latestHandoffByPair.entries()).map(([key, card]) => {
@@ -219,14 +252,20 @@ function buildFlowModel(cards: TelemetryCard[]): { nodes: Array<any>; edges: Arr
       },
       labelBgBorderRadius: 999,
       labelBgPadding: [6, 4],
-    };
+    } satisfies Edge<FlowEdgeData>;
   });
 
   return { nodes, edges };
 }
 
+function findLatestReviewGroupId(cards: TelemetryCard[]): string | null {
+  return cards.find((card) => card.fanoutGroupId)?.fanoutGroupId ?? null;
+}
+
 function toGraphAgent(agentName: string): GraphAgent | null {
-  return agentName === 'CEO' || agentName === 'Developer' || agentName === 'QA' ? agentName : null;
+  return agentName === 'CEO' || agentName === 'frontend_designer' || agentName === 'Developer' || agentName === 'QA'
+    ? agentName
+    : null;
 }
 
 function resolveHandoffTarget(card: TelemetryCard, source?: GraphAgent): GraphAgent | null {
@@ -234,7 +273,7 @@ function resolveHandoffTarget(card: TelemetryCard, source?: GraphAgent): GraphAg
     return toGraphAgent(card.handoffTo);
   }
 
-  const match = card.content.match(/handoff_to=([A-Za-z]+)/i);
+  const match = card.content.match(/handoff_to=([A-Za-z_]+)/i);
   if (match) {
     const candidate = toGraphAgent(match[1]);
     if (candidate) {
@@ -258,6 +297,10 @@ function edgeTone(source: GraphAgent, target: GraphAgent): { stroke: string } {
     return { stroke: '#38bdf8' };
   }
 
+  if (source === 'frontend_designer' || target === 'frontend_designer') {
+    return { stroke: '#f59e0b' };
+  }
+
   if (source === 'Developer' || target === 'Developer') {
     return { stroke: '#34d399' };
   }
@@ -274,9 +317,50 @@ function MetricPill({ label, value, isText = false }: { label: string; value: nu
   );
 }
 
+function ReviewSwarm({ cards }: { cards: TelemetryCard[] }) {
+  return (
+    <section className="rounded-3xl border border-white/10 bg-white/5 p-4 sm:p-5">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p className="text-xs uppercase tracking-[0.3em] text-sky-300">Parallel QA swarm</p>
+          <h3 className="mt-2 text-lg font-semibold text-white">חמישה סוקרי QA רצים במקביל</h3>
+        </div>
+        <span className="rounded-full border border-white/10 bg-slate-950/70 px-3 py-1 text-xs text-slate-300">
+          {cards.length} review lanes
+        </span>
+      </div>
+
+      <div className="mt-4 grid gap-3 lg:grid-cols-5">
+        {cards.map((card) => {
+          const focus = card.reviewFocus ?? 'Security';
+          const tone = reviewTone[focus as ReviewFocus];
+          return (
+            <article
+              key={card.id}
+              className={`rounded-2xl border ${tone.border} bg-slate-950/85 p-3 shadow-[0_0_24px_rgba(15,23,42,0.4)]`}
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${tone.chip}`}>{focus}</span>
+                <span className="text-[10px] uppercase tracking-[0.2em] text-slate-500">QA</span>
+              </div>
+              <p className="mt-3 line-clamp-3 text-sm leading-6 text-slate-200">{card.content}</p>
+              <div className="mt-3 flex items-center justify-between gap-2 text-[11px] text-slate-400">
+                <span>{card.fanoutGroupId ? card.fanoutGroupId.slice(-8) : 'fanout'}</span>
+                <span>{formatTimestamp(card.createdAt)}</span>
+              </div>
+            </article>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
 function AgentNode({ data }: { data: FlowNodeData }) {
   const tone = nodeTone[data.agentName];
   const latestAction = data.latestAction ? actionTone[data.latestAction] : null;
+  const displayName = data.agentName === 'frontend_designer' ? 'UI/UX Pro Max' : data.agentName;
+  const subtitle = data.agentName === 'frontend_designer' ? 'frontend_designer' : 'Agent node';
 
   return (
     <div className={`relative rounded-3xl border ${tone.border} bg-slate-900/95 p-4 text-slate-100 shadow-2xl backdrop-blur-xl`}>
@@ -285,8 +369,8 @@ function AgentNode({ data }: { data: FlowNodeData }) {
 
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-[10px] uppercase tracking-[0.3em] text-slate-400">Agent node</p>
-          <h3 className="mt-1 text-xl font-semibold text-white">{data.agentName}</h3>
+          <p className="text-[10px] uppercase tracking-[0.3em] text-slate-400">{subtitle}</p>
+          <h3 className="mt-1 text-xl font-semibold text-white">{displayName}</h3>
         </div>
         <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${tone.badge}`}>{data.eventCount} events</span>
       </div>
@@ -313,7 +397,7 @@ function AgentNode({ data }: { data: FlowNodeData }) {
 
 const nodeTypes = {
   agentNode: AgentNode,
-};
+} as any;
 
 function formatTimestamp(value: string) {
   const date = new Date(value);

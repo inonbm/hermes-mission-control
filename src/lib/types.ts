@@ -1,6 +1,7 @@
 export type AgencyTaskStatus = 'In Progress' | 'Done' | 'Failed';
-export type AgentName = 'CEO' | 'Developer' | 'QA' | 'Content';
+export type AgentName = 'CEO' | 'frontend_designer' | 'Developer' | 'QA' | 'Content';
 export type AgentAction = 'Thinking' | 'Executing' | 'Handoff';
+export type ReviewFocus = 'Security' | 'Logic & Bugs' | 'Guidelines' | 'Redundancy' | 'Maintainability';
 
 export interface AgencyTask {
   id: string;
@@ -18,6 +19,9 @@ export interface AgentTelemetryRow {
   content: string;
   created_at: string;
   handoff_to?: AgentName | null;
+  review_focus?: ReviewFocus | null;
+  fanout_group_id?: string | null;
+  parent_event_id?: string | null;
   agency_tasks?: AgencyTask | AgencyTask[] | null;
 }
 
@@ -30,5 +34,8 @@ export interface TelemetryCard {
   action: AgentAction;
   content: string;
   handoffTo?: AgentName | null;
+  reviewFocus?: ReviewFocus | null;
+  fanoutGroupId?: string | null;
+  parentEventId?: string | null;
   createdAt: string;
 }

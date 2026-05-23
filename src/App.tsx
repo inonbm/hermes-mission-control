@@ -1,9 +1,10 @@
 import { useMemo } from 'react';
 import { useMissionControlFeed } from './hooks/useMissionControlFeed';
 import { TelemetryBoard } from './components/TelemetryBoard';
-import type { AgentAction } from './lib/types';
+import type { AgentAction, AgentName } from './lib/types';
 
 const actionOrder: AgentAction[] = ['Thinking', 'Executing', 'Handoff'];
+const agentOrder: AgentName[] = ['CEO', 'frontend_designer', 'Developer', 'QA', 'Content'];
 
 export default function App() {
   const { cards, loading, connected, error, lastSync, refresh } = useMissionControlFeed();
@@ -16,8 +17,12 @@ export default function App() {
       acc[action] = cards.filter((card) => card.action === action).length;
       return acc;
     }, { Thinking: 0, Executing: 0, Handoff: 0 });
+    const agentCounts = agentOrder.reduce<Record<AgentName, number>>((acc, agent) => {
+      acc[agent] = cards.filter((card) => card.agentName === agent).length;
+      return acc;
+    }, { CEO: 0, frontend_designer: 0, Developer: 0, QA: 0, Content: 0 });
 
-    return { total, activeTasks, lastEvent, counts };
+    return { total, activeTasks, lastEvent, counts, agentCounts };
   }, [cards]);
 
   return (
@@ -46,11 +51,12 @@ export default function App() {
           </div>
         </div>
 
-        <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
           <StatCard label="אירועים כוללים" value={overview.total} hint="agent_telemetry rows" />
           <StatCard label="משימות פעילות" value={overview.activeTasks} hint="distinct task_id" />
           <StatCard label="Thinking" value={overview.counts.Thinking} hint="sensing and analysis" />
           <StatCard label="Handoff" value={overview.counts.Handoff} hint="handoff events" />
+          <StatCard label="Designer" value={overview.agentCounts.frontend_designer} hint="UI/UX Pro Max" />
         </div>
 
         <div className="mt-5 flex flex-wrap items-center gap-3 text-sm text-slate-400">

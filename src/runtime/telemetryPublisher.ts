@@ -1,5 +1,5 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import type { AgentAction, AgentName, AgencyTaskStatus } from '../lib/types';
+import type { AgentAction, AgentName, AgencyTaskStatus, ReviewFocus } from '../lib/types';
 
 export interface TelemetryEvent {
   taskId: string;
@@ -7,6 +7,10 @@ export interface TelemetryEvent {
   action: AgentAction;
   content: string;
   handoffTo?: AgentName | null;
+  reviewFocus?: ReviewFocus | null;
+  fanoutGroupId?: string | null;
+  parentEventId?: string | null;
+  promptProfile?: string | null;
 }
 
 export interface TelemetryPublisherConfig {
@@ -23,12 +27,25 @@ export interface TelemetryPublisher {
     agentName: AgentName;
     action: AgentAction;
     content: string;
+    promptProfile?: string | null;
   }): Promise<void>;
   recordHandoff(params: {
     taskId: string;
     from: AgentName;
     to: AgentName;
     content: string;
+    promptProfile?: string | null;
+  }): Promise<void>;
+  recordReviewStatus(params: {
+    taskId: string;
+    projectName?: string;
+    agentName: AgentName;
+    action: AgentAction;
+    focus: ReviewFocus;
+    fanoutGroupId: string;
+    parentEventId?: string | null;
+    content: string;
+    promptProfile?: string | null;
   }): Promise<void>;
 }
 
@@ -43,27 +60,51 @@ export function createTelemetryPublisher(config: TelemetryPublisherConfig): Tele
 
   return {
     record: (event) => enqueueTelemetryInsert(client, event),
-    recordStatusChange: ({ taskId, projectName, status, agentName, action, content }) =>
+    recordStatusChange: ({ taskId, projectName, status, agentName, action, content, promptProfile }) =>
       enqueueTelemetryInsert(client, {
         taskId,
         agentName,
         action,
-        content: formatTelemetryContent(content, { projectName, status }),
+        content: formatTelemetryContent(content, { projectName, status, promptProfile }),
       }),
-    recordHandoff: ({ taskId, from, to, content }) =>
+    recordHandoff: ({ taskId, from, to, content, promptProfile }) =>
       enqueueTelemetryInsert(client, {
         taskId,
         agentName: from,
         action: 'Handoff',
         handoffTo: to,
-        content: formatTelemetryContent(content, { handoffTo: to }),
+        content: formatTelemetryContent(content, { handoffTo: to, promptProfile }),
+      }),
+    recordReviewStatus: ({ taskId, projectName, agentName, action, focus, fanoutGroupId, parentEventId, content, promptProfile }) =>
+      enqueueTelemetryInsert(client, {
+        taskId,
+        agentName,
+        action,
+        reviewFocus: focus,
+        fanoutGroupId,
+        parentEventId: parentEventId ?? null,
+        content: formatTelemetryContent(content, {
+          projectName,
+          reviewFocus: focus,
+          fanoutGroupId,
+          parentEventId: parentEventId ?? undefined,
+          promptProfile,
+        }),
       }),
   };
 }
 
 function formatTelemetryContent(
   content: string,
-  details: { projectName?: string; status?: AgencyTaskStatus; handoffTo?: AgentName },
+  details: {
+    projectName?: string;
+    status?: AgencyTaskStatus;
+    handoffTo?: AgentName;
+    reviewFocus?: ReviewFocus;
+    fanoutGroupId?: string;
+    parentEventId?: string;
+    promptProfile?: string | null;
+  },
 ): string {
   const parts = [content.trim()];
   if (details.projectName) {
@@ -74,6 +115,18 @@ function formatTelemetryContent(
   }
   if (details.handoffTo) {
     parts.push(`handoff_to=${details.handoffTo}`);
+  }
+  if (details.reviewFocus) {
+    parts.push(`review_focus=${details.reviewFocus}`);
+  }
+  if (details.fanoutGroupId) {
+    parts.push(`fanout_group=${details.fanoutGroupId}`);
+  }
+  if (details.parentEventId) {
+    parts.push(`parent_event=${details.parentEventId}`);
+  }
+  if (details.promptProfile) {
+    parts.push(`prompt_profile=${details.promptProfile}`);
   }
   return parts.filter(Boolean).join(' | ');
 }
@@ -89,6 +142,9 @@ function enqueueTelemetryInsert(client: SupabaseClient, event: TelemetryEvent): 
           action: event.action,
           content: event.content,
           handoff_to: event.handoffTo ?? null,
+          review_focus: event.reviewFocus ?? null,
+          fanout_group_id: event.fanoutGroupId ?? null,
+          parent_event_id: event.parentEventId ?? null,
         })
         .then(
           (result: { error: { message?: string } | null }) => {
