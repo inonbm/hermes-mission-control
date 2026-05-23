@@ -30,8 +30,8 @@ export default function App() {
       <header className="rounded-3xl border border-white/10 bg-slate-950/75 p-5 shadow-glow backdrop-blur-xl sm:p-6">
         <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
           <div className="max-w-3xl">
-            <p className="text-xs uppercase tracking-[0.3em] text-sky-300">Hermes Mission Control</p>
-            <h1 className="mt-3 text-3xl font-semibold text-white sm:text-4xl">
+            <p className="text-xs uppercase tracking-[0.3em] text-cyan-300">Hermes Mission Control</p>
+            <h1 className="font-display mt-3 text-3xl font-bold tracking-tight text-white sm:text-5xl">
               חדר בקרה פנימי, עצמאי ומבודד לסוכני Hermes
             </h1>
             <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-300 sm:text-base">
@@ -90,9 +90,9 @@ function StatusPill({ connected }: { connected: boolean }) {
 
 function StatCard({ label, value, hint }: { label: string; value: number; hint: string }) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+    <div className="rounded-2xl border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.06),rgba(255,255,255,0.03))] p-4 shadow-[0_0_0_1px_rgba(255,255,255,0.02)] backdrop-blur-xl">
       <p className="text-xs uppercase tracking-[0.2em] text-slate-400">{label}</p>
-      <p className="mt-3 text-3xl font-semibold text-white">{value}</p>
+      <p className="font-display mt-3 text-3xl font-bold text-white tabular-nums">{value}</p>
       <p className="mt-2 text-sm text-slate-400">{hint}</p>
     </div>
   );

@@ -2,13 +2,17 @@ import { useMemo } from 'react';
 import {
   Background,
   BackgroundVariant,
+  BaseEdge,
   Controls,
+  EdgeLabelRenderer,
   Handle,
   MarkerType,
   MiniMap,
   Position,
   ReactFlow,
+  getBezierPath,
   type Edge,
+  type EdgeProps,
   type Node,
   type NodeProps,
   type NodeTypes,
@@ -27,8 +31,11 @@ type FlowNodeData = {
   eventCount: number;
 };
 
+type FlowEdgeTone = 'cyan' | 'indigo' | 'emerald' | 'violet' | 'rose';
+
 type FlowEdgeData = {
   label: string;
+  tone: FlowEdgeTone;
 };
 
 interface Props {
@@ -37,43 +44,47 @@ interface Props {
 
 const agentOrder: GraphAgent[] = ['CEO', 'frontend_designer', 'Developer', 'QA'];
 const agentPositions: Record<GraphAgent, { x: number; y: number }> = {
-  CEO: { x: 48, y: 108 },
-  frontend_designer: { x: 322, y: 24 },
-  Developer: { x: 610, y: 108 },
-  QA: { x: 894, y: 196 },
+  CEO: { x: 42, y: 112 },
+  frontend_designer: { x: 332, y: 28 },
+  Developer: { x: 626, y: 112 },
+  QA: { x: 920, y: 206 },
 };
 
-const nodeTone: Record<GraphAgent, { border: string; glow: string; badge: string; dot: string }> = {
+const nodeTone: Record<GraphAgent, { border: string; glow: string; badge: string; dot: string; accent: string }> = {
   CEO: {
-    border: 'border-sky-400/30',
-    glow: 'shadow-[0_0_42px_rgba(56,189,248,0.18)]',
-    badge: 'bg-sky-500/15 text-sky-100',
-    dot: '#38bdf8',
+    border: 'border-cyan-400/30',
+    glow: 'shadow-[0_0_48px_rgba(34,211,238,0.16)]',
+    badge: 'bg-cyan-500/15 text-cyan-100',
+    dot: '#22d3ee',
+    accent: 'from-cyan-400/16 via-cyan-500/8 to-transparent',
   },
   frontend_designer: {
-    border: 'border-amber-300/30',
-    glow: 'shadow-[0_0_42px_rgba(251,191,36,0.18)]',
-    badge: 'bg-amber-500/15 text-amber-100',
-    dot: '#f59e0b',
+    border: 'border-indigo-400/30',
+    glow: 'shadow-[0_0_48px_rgba(99,102,241,0.18)]',
+    badge: 'bg-indigo-500/15 text-indigo-100',
+    dot: '#6366f1',
+    accent: 'from-indigo-400/16 via-indigo-500/8 to-transparent',
   },
   Developer: {
     border: 'border-emerald-400/30',
-    glow: 'shadow-[0_0_42px_rgba(52,211,153,0.16)]',
+    glow: 'shadow-[0_0_48px_rgba(52,211,153,0.16)]',
     badge: 'bg-emerald-500/15 text-emerald-100',
     dot: '#34d399',
+    accent: 'from-emerald-400/16 via-emerald-500/8 to-transparent',
   },
   QA: {
     border: 'border-violet-400/30',
-    glow: 'shadow-[0_0_42px_rgba(167,139,250,0.18)]',
+    glow: 'shadow-[0_0_48px_rgba(167,139,250,0.18)]',
     badge: 'bg-violet-500/15 text-violet-100',
     dot: '#a78bfa',
+    accent: 'from-violet-400/16 via-violet-500/8 to-transparent',
   },
 };
 
-const actionTone: Record<AgentAction, { chip: string; ring: string }> = {
-  Thinking: { chip: 'bg-cyan-500/15 text-cyan-100', ring: 'ring-cyan-400/20' },
-  Executing: { chip: 'bg-emerald-500/15 text-emerald-100', ring: 'ring-emerald-400/20' },
-  Handoff: { chip: 'bg-violet-500/15 text-violet-100', ring: 'ring-violet-400/20' },
+const actionTone: Record<AgentAction, { chip: string; ring: string; dot: string }> = {
+  Thinking: { chip: 'bg-cyan-500/15 text-cyan-100', ring: 'ring-cyan-400/20', dot: 'bg-cyan-300' },
+  Executing: { chip: 'bg-indigo-500/15 text-indigo-100', ring: 'ring-indigo-400/20', dot: 'bg-indigo-300' },
+  Handoff: { chip: 'bg-violet-500/15 text-violet-100', ring: 'ring-violet-400/20', dot: 'bg-violet-300' },
 };
 
 const reviewFocusOrder: ReviewFocus[] = ['Security', 'Logic & Bugs', 'Guidelines', 'Redundancy', 'Maintainability'];
@@ -102,11 +113,14 @@ export function TelemetryBoard({ cards }: Props) {
   }, [cards, latestReviewGroupId]);
 
   return (
-    <section className="rounded-3xl border border-white/10 bg-slate-950/75 p-4 shadow-glow backdrop-blur-xl sm:p-6">
-      <div className="mb-4 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+    <section className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-[linear-gradient(180deg,rgba(9,9,11,0.92),rgba(2,6,23,0.88))] p-4 shadow-glow backdrop-blur-2xl sm:p-6">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.08),transparent_30%),radial-gradient(circle_at_top_right,rgba(99,102,241,0.08),transparent_28%)]" />
+      <div className="relative z-10 mb-4 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div className="max-w-3xl">
-          <p className="text-xs uppercase tracking-[0.3em] text-sky-300">Live agent graph</p>
-          <h2 className="mt-2 text-2xl font-semibold text-white sm:text-3xl">רשת גרפית חיה של סוכני Hermes</h2>
+          <p className="text-xs uppercase tracking-[0.3em] text-cyan-300">Live agent graph</p>
+          <h2 className="font-display mt-2 text-2xl font-bold tracking-tight text-white sm:text-4xl">
+            רשת גרפית חיה של סוכני Hermes
+          </h2>
           <p className="mt-2 max-w-2xl text-sm leading-7 text-slate-300 sm:text-base">
             כל צומת מייצג סוכן, וכל Handoff יוצר קו מונפש בזמן אמת מתוך Supabase Realtime.
           </p>
@@ -120,18 +134,19 @@ export function TelemetryBoard({ cards }: Props) {
         </div>
       </div>
 
-      <div className="mb-4 flex flex-wrap items-center gap-3 text-xs text-slate-400">
+      <div className="relative z-10 mb-4 flex flex-wrap items-center gap-3 text-xs text-slate-400">
         <span>Latest update: {latestEvent ? formatTimestamp(latestEvent.createdAt) : 'pending'}</span>
         {latestEvent ? <span>Latest action: {latestEvent.action}</span> : null}
       </div>
 
       {reviewCards.length > 0 ? <ReviewSwarm cards={reviewCards} /> : null}
 
-      <div className="mt-4 h-[760px] overflow-hidden rounded-3xl border border-white/10 bg-slate-950/80">
+      <div className="relative z-10 mt-4 h-[700px] overflow-hidden rounded-[2rem] border border-white/10 bg-[linear-gradient(180deg,rgba(2,6,23,0.9),rgba(15,23,42,0.95))] sm:h-[760px]">
         <ReactFlow
           nodes={model.nodes}
           edges={model.edges}
-          nodeTypes={nodeTypes as any}
+          nodeTypes={nodeTypes}
+          edgeTypes={edgeTypes}
           fitView
           nodesDraggable={false}
           nodesConnectable={false}
@@ -142,12 +157,13 @@ export function TelemetryBoard({ cards }: Props) {
           proOptions={{ hideAttribution: true }}
           minZoom={0.7}
           maxZoom={1.4}
+          className="react-flow-shell"
         >
           <Background variant={BackgroundVariant.Dots} gap={24} size={1} color="rgba(148, 163, 184, 0.18)" />
           <MiniMap
             nodeColor={(node) => nodeTone[(node.id as GraphAgent)]?.dot ?? '#64748b'}
-            maskColor="rgba(2, 6, 23, 0.7)"
-            style={{ background: 'rgba(15, 23, 42, 0.75)', border: '1px solid rgba(255,255,255,0.08)' }}
+            maskColor="rgba(2, 6, 23, 0.72)"
+            style={{ background: 'rgba(15, 23, 42, 0.82)', border: '1px solid rgba(255,255,255,0.08)' }}
           />
           <Controls position="bottom-right" />
         </ReactFlow>
@@ -187,6 +203,7 @@ function buildFlowModel(cards: TelemetryCard[]): { nodes: Node<FlowNodeData>[]; 
     const latest = latestByAgent.get(agentName) ?? null;
     const eventCount = cards.filter((card) => toGraphAgent(card.agentName) === agentName).length;
     const action = latest?.action ?? null;
+    const borderTone = nodeTone[agentName];
 
     return {
       id: agentName,
@@ -203,11 +220,11 @@ function buildFlowModel(cards: TelemetryCard[]): { nodes: Node<FlowNodeData>[]; 
       sourcePosition: Position.Right,
       targetPosition: Position.Left,
       style: {
-        width: 262,
+        width: 280,
         background: 'transparent',
         border: 'none',
       },
-      className: nodeTone[agentName].glow,
+      className: `${borderTone.glow}`,
       draggable: false,
       selectable: false,
       deletable: false,
@@ -227,31 +244,21 @@ function buildFlowModel(cards: TelemetryCard[]): { nodes: Node<FlowNodeData>[]; 
       id: `${card.id}-${key}`,
       source,
       target,
-      type: 'smoothstep',
-      animated: true,
+      type: 'flowEdge',
+      animated: false,
       label: 'Handoff',
       data: {
         label: `Handoff to ${target}`,
+        tone,
       } satisfies FlowEdgeData,
       markerEnd: {
         type: MarkerType.ArrowClosed,
-        color: tone.stroke,
+        color: edgeToneColor(tone),
       },
       style: {
-        stroke: tone.stroke,
-        strokeWidth: 2.5,
+        stroke: edgeToneColor(tone),
+        strokeWidth: 2.6,
       },
-      labelStyle: {
-        fill: '#e2e8f0',
-        fontSize: 11,
-        fontWeight: 600,
-      },
-      labelBgStyle: {
-        fill: 'rgba(15, 23, 42, 0.92)',
-        fillOpacity: 1,
-      },
-      labelBgBorderRadius: 999,
-      labelBgPadding: [6, 4],
     } satisfies Edge<FlowEdgeData>;
   });
 
@@ -292,52 +299,71 @@ function resolveHandoffTarget(card: TelemetryCard, source?: GraphAgent): GraphAg
   return agentOrder[(agentOrder.indexOf(source) + 1) % agentOrder.length];
 }
 
-function edgeTone(source: GraphAgent, target: GraphAgent): { stroke: string } {
+function edgeTone(source: GraphAgent, target: GraphAgent): FlowEdgeTone {
   if (source === 'CEO' || target === 'CEO') {
-    return { stroke: '#38bdf8' };
+    return 'cyan';
   }
 
   if (source === 'frontend_designer' || target === 'frontend_designer') {
-    return { stroke: '#f59e0b' };
+    return 'indigo';
   }
 
   if (source === 'Developer' || target === 'Developer') {
-    return { stroke: '#34d399' };
+    return 'emerald';
   }
 
-  return { stroke: '#a78bfa' };
+  return 'violet';
+}
+
+function edgeToneColor(tone: FlowEdgeTone): string {
+  switch (tone) {
+    case 'cyan':
+      return '#22d3ee';
+    case 'indigo':
+      return '#6366f1';
+    case 'emerald':
+      return '#34d399';
+    case 'violet':
+      return '#a78bfa';
+    case 'rose':
+      return '#fb7185';
+    default:
+      return '#22d3ee';
+  }
 }
 
 function MetricPill({ label, value, isText = false }: { label: string; value: number | string; isText?: boolean }) {
   return (
-    <div className="rounded-full border border-white/10 bg-white/5 px-4 py-2">
+    <div className="rounded-full border border-white/10 bg-white/5 px-4 py-2 shadow-[0_0_0_1px_rgba(255,255,255,0.02)] backdrop-blur-xl">
       <div className="text-[10px] uppercase tracking-[0.2em] text-slate-400">{label}</div>
-      <div className={`mt-1 text-sm font-semibold ${isText ? 'text-white' : 'text-slate-100'}`}>{value}</div>
+      <div className={`font-display mt-1 text-sm font-semibold tabular-nums ${isText ? 'text-white' : 'text-slate-100'}`}>
+        {value}
+      </div>
     </div>
   );
 }
 
 function ReviewSwarm({ cards }: { cards: TelemetryCard[] }) {
   return (
-    <section className="rounded-3xl border border-white/10 bg-white/5 p-4 sm:p-5">
+    <section className="rounded-[2rem] border border-white/10 bg-white/5 p-4 sm:p-5 backdrop-blur-2xl">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <p className="text-xs uppercase tracking-[0.3em] text-sky-300">Parallel QA swarm</p>
-          <h3 className="mt-2 text-lg font-semibold text-white">חמישה סוקרי QA רצים במקביל</h3>
+          <p className="text-xs uppercase tracking-[0.3em] text-cyan-300">Parallel QA swarm</p>
+          <h3 className="font-display mt-2 text-lg font-bold text-white sm:text-xl">חמישה סוקרי QA רצים במקביל</h3>
         </div>
         <span className="rounded-full border border-white/10 bg-slate-950/70 px-3 py-1 text-xs text-slate-300">
           {cards.length} review lanes
         </span>
       </div>
 
-      <div className="mt-4 grid gap-3 lg:grid-cols-5">
+      <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
         {cards.map((card) => {
           const focus = card.reviewFocus ?? 'Security';
           const tone = reviewTone[focus as ReviewFocus];
           return (
             <article
               key={card.id}
-              className={`rounded-2xl border ${tone.border} bg-slate-950/85 p-3 shadow-[0_0_24px_rgba(15,23,42,0.4)]`}
+              className={`rounded-[1.35rem] border ${tone.border} bg-slate-950/88 p-3 shadow-[0_0_24px_rgba(15,23,42,0.48)] backdrop-blur-xl`}
             >
               <div className="flex items-center justify-between gap-2">
                 <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${tone.chip}`}>{focus}</span>
@@ -356,30 +382,37 @@ function ReviewSwarm({ cards }: { cards: TelemetryCard[] }) {
   );
 }
 
-function AgentNode({ data }: { data: FlowNodeData }) {
-  const tone = nodeTone[data.agentName];
-  const latestAction = data.latestAction ? actionTone[data.latestAction] : null;
+function AgentNode({ data }: any) {
+  const tone = nodeTone[data.agentName as GraphAgent];
+  const latestAction = data.latestAction ? actionTone[data.latestAction as AgentAction] : null;
   const displayName = data.agentName === 'frontend_designer' ? 'UI/UX Pro Max' : data.agentName;
   const subtitle = data.agentName === 'frontend_designer' ? 'frontend_designer' : 'Agent node';
 
   return (
-    <div className={`relative rounded-3xl border ${tone.border} bg-slate-900/95 p-4 text-slate-100 shadow-2xl backdrop-blur-xl`}>
+    <div
+      className={`group relative isolate overflow-hidden rounded-[1.6rem] border ${tone.border} bg-[linear-gradient(180deg,rgba(255,255,255,0.07),rgba(15,23,42,0.92))] p-4 text-slate-100 backdrop-blur-2xl transition duration-300 hover:-translate-y-0.5 hover:border-white/20 hover:bg-[linear-gradient(180deg,rgba(255,255,255,0.08),rgba(15,23,42,0.96))] sm:p-5`}
+    >
+      <div className={`pointer-events-none absolute inset-0 bg-gradient-to-br ${tone.accent} opacity-80`} />
+      <div className="pointer-events-none absolute inset-[1px] rounded-[1.45rem] border border-white/5" />
       <Handle type="target" position={Position.Left} className="!border-0 !bg-transparent" />
       <Handle type="source" position={Position.Right} className="!border-0 !bg-transparent" />
 
-      <div className="flex items-start justify-between gap-3">
+      <div className="relative flex items-start justify-between gap-3">
         <div>
-          <p className="text-[10px] uppercase tracking-[0.3em] text-slate-400">{subtitle}</p>
-          <h3 className="mt-1 text-xl font-semibold text-white">{displayName}</h3>
+          <p className="text-[10px] uppercase tracking-[0.34em] text-slate-400">{subtitle}</p>
+          <h3 className="font-display mt-1 text-xl font-bold text-white sm:text-2xl">{displayName}</h3>
         </div>
         <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${tone.badge}`}>{data.eventCount} events</span>
       </div>
 
-      <div className="mt-4 space-y-3">
-        <div className={`rounded-2xl border border-white/10 bg-white/5 p-3 ${latestAction ? latestAction.ring : ''}`}>
+      <div className="relative mt-4 space-y-3">
+        <div
+          className={`rounded-[1.25rem] border border-white/10 bg-white/6 p-3 transition duration-300 ${latestAction ? `${latestAction.ring} shadow-[0_0_0_1px_rgba(255,255,255,0.04),0_0_24px_rgba(255,255,255,0.08)]` : 'shadow-[0_0_0_1px_rgba(255,255,255,0.03)]'}`}
+        >
           <div className="flex items-center justify-between gap-3">
             <span className="text-xs uppercase tracking-[0.2em] text-slate-400">State</span>
-            <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${latestAction ? latestAction.chip : 'bg-slate-500/15 text-slate-200'}`}>
+            <span className={`inline-flex items-center gap-2 rounded-full px-2 py-0.5 text-xs font-semibold ${latestAction ? latestAction.chip : 'bg-slate-500/15 text-slate-200'}`}>
+              <span className={`h-2 w-2 rounded-full ${latestAction ? latestAction.dot : 'bg-slate-400'} ${latestAction ? 'animate-pulse' : ''}`} />
               {data.latestAction ?? 'Idle'}
             </span>
           </div>
@@ -387,16 +420,59 @@ function AgentNode({ data }: { data: FlowNodeData }) {
         </div>
 
         <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-400">
-          <span>Task: {data.latestTask}</span>
-          <span>{data.latestAt ? formatTimestamp(data.latestAt) : 'pending'}</span>
+          <span className="truncate">Task: {data.latestTask}</span>
+          <span className="font-display tabular-nums">{data.latestAt ? formatTimestamp(data.latestAt) : 'pending'}</span>
         </div>
       </div>
     </div>
   );
 }
 
+function FlowEdge(props: any) {
+  const { sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, style, markerEnd, data } = props;
+  const [edgePath, labelX, labelY] = getBezierPath({
+    sourceX,
+    sourceY,
+    targetX,
+    targetY,
+    sourcePosition,
+    targetPosition,
+  });
+  const tone = (data?.tone ?? 'cyan') as FlowEdgeTone;
+  const label = data?.label ?? 'Handoff';
+
+  return (
+    <>
+      <BaseEdge
+        path={edgePath}
+        markerEnd={markerEnd}
+        className={`flow-edge flow-edge--${tone}`}
+        style={{
+          ...style,
+          strokeWidth: 6,
+          opacity: 0.14,
+          filter: 'blur(6px)',
+        }}
+      />
+      <BaseEdge path={edgePath} markerEnd={markerEnd} className={`flow-edge flow-edge--${tone}`} style={style} />
+      <EdgeLabelRenderer>
+        <div
+          style={{ transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)` }}
+          className="pointer-events-none absolute rounded-full border border-white/10 bg-slate-950/92 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.22em] text-slate-200 shadow-lg backdrop-blur-xl"
+        >
+          {label}
+        </div>
+      </EdgeLabelRenderer>
+    </>
+  );
+}
+
 const nodeTypes = {
   agentNode: AgentNode,
+} as any;
+
+const edgeTypes = {
+  flowEdge: FlowEdge,
 } as any;
 
 function formatTimestamp(value: string) {
