@@ -997,24 +997,57 @@ body.reel-mode .command-layout {
 }
 
 body.reel-mode .command-center {
-  height: calc(100vh - 90px);
-  width: calc((100vh - 90px) * 9 / 16);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 12px;
+  height: calc(100vh - 132px);
+  width: min(calc((100vh - 132px) * 9 / 16), 100%);
   margin: 0 auto;
   border-radius: var(--radius-xl);
   flex-shrink: 0;
+  padding: 12px 12px 18px;
+  overflow: hidden;
 }
 
 body.reel-mode .agent-card {
-  width: 130px;
+  position: static !important;
+  top: auto !important;
+  left: auto !important;
+  right: auto !important;
+  bottom: auto !important;
+  width: 100% !important;
+  transform: none !important;
+  margin: 0;
+  min-height: 84px;
+  padding: 6px 8px;
+}
+
+body.reel-mode .agents-zone .agent-card:nth-child(5) {
+  display: none;
 }
 
 body.reel-mode .status-card {
-  width: 125px;
+  display: none;
 }
 
 body.reel-mode .core {
-  width: min(260px, 48%);
+  order: 1;
+  width: min(290px, 82%);
   min-height: 260px;
+  margin-top: 0;
+}
+
+body.reel-mode .agents-zone {
+  order: 2;
+  position: relative;
+  inset: auto;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  width: 100%;
+  pointer-events: auto;
 }
 
 body.reel-mode .ring-one {
@@ -1025,6 +1058,42 @@ body.reel-mode .ring-one {
 body.reel-mode .ring-two {
   width: 58%;
   height: 58%;
+}
+
+body.reel-mode .kanban-strip {
+  display: none;
+}
+
+body.reel-mode .core-subtitle {
+  max-width: 210px;
+}
+
+body.reel-mode .core h2 {
+  font-size: clamp(2.25rem, 6vw, 3.4rem);
+}
+
+body.reel-mode .core-stats {
+  font-size: 0.72rem;
+  padding: 6px 10px;
+}
+
+body.reel-mode .agent-card-name {
+  font-size: 0.58rem;
+  margin-bottom: 1px;
+}
+
+body.reel-mode .agent-card-task {
+  display: none;
+}
+
+body.reel-mode .brain-wave {
+  height: 10px;
+  margin-bottom: 3px;
+}
+
+body.reel-mode .card-badge {
+  padding: 2px 7px;
+  font-size: 0.58rem;
 }
 
 body.reel-mode .reel-exit-btn {

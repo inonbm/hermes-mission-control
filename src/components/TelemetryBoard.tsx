@@ -31,7 +31,6 @@ const agentLayout: Record<GraphAgent, { top: string; left: string; width: string
 
 export function TelemetryBoard({ cards, overview }: Props) {
   const [selectedAgent, setSelectedAgent] = useState<GraphAgent | null>(null);
-  const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
 
   const latestByAgent = useMemo(() => {
     const map = new Map<GraphAgent, TelemetryCard>();
@@ -49,14 +48,11 @@ export function TelemetryBoard({ cards, overview }: Props) {
   const currentTaskId = useMemo(() => cards.find((card) => card.taskStatus === 'In Progress')?.taskId ?? null, [cards]);
   const latestReviewGroupId = useMemo(() => cards.find((card) => card.fanoutGroupId)?.fanoutGroupId ?? null, [cards]);
   const selectedCard = useMemo(() => {
-    if (selectedCardId) {
-      return cards.find((card) => card.id === selectedCardId) ?? null;
-    }
     if (selectedAgent) {
       return latestByAgent.get(selectedAgent) ?? null;
     }
     return overview.lastEvent;
-  }, [cards, latestByAgent, overview.lastEvent, selectedAgent, selectedCardId]);
+  }, [latestByAgent, overview.lastEvent, selectedAgent]);
 
   const activeCards = useMemo(() => cards.filter((card) => card.taskStatus === 'In Progress').slice(0, 4), [cards]);
   const feedCards = useMemo(() => cards.slice(0, 7), [cards]);
@@ -122,8 +118,6 @@ export function TelemetryBoard({ cards, overview }: Props) {
               active={selectedAgent === agentName}
               onSelect={(nextAgent) => {
                 setSelectedAgent(nextAgent);
-                const firstCard = latestByAgent.get(nextAgent) ?? null;
-                setSelectedCardId(firstCard ? firstCard.id : null);
               }}
               layout={agentLayout[agentName]}
             />
@@ -249,7 +243,6 @@ export function TelemetryBoard({ cards, overview }: Props) {
                       type="button"
                       onClick={() => {
                         setSelectedAgent(isGraphAgent(card.agentName) ? card.agentName : null);
-                        setSelectedCardId(card.id);
                       }}
                       style={{
                         display: 'block',
