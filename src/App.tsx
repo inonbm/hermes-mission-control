@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useMissionControlFeed } from './hooks/useMissionControlFeed';
 import { TelemetryBoard } from './components/TelemetryBoard';
 import type { AgentAction, AgentName } from './lib/types';
@@ -8,6 +8,14 @@ const agentOrder: AgentName[] = ['CEO', 'frontend_designer', 'Developer', 'QA', 
 
 export default function App() {
   const { cards, loading, connected, error, lastSync, refresh } = useMissionControlFeed();
+  const [reelMode, setReelMode] = useState(false);
+
+  useEffect(() => {
+    document.body.classList.toggle('reel-mode', reelMode);
+    return () => {
+      document.body.classList.remove('reel-mode');
+    };
+  }, [reelMode]);
 
   const overview = useMemo(() => {
     const total = cards.length;
@@ -21,86 +29,67 @@ export default function App() {
       acc[agent] = cards.filter((card) => card.agentName === agent).length;
       return acc;
     }, { CEO: 0, frontend_designer: 0, Developer: 0, QA: 0, Content: 0 });
+    const blockingCount = cards.filter((card) => card.taskStatus === 'Failed').length;
 
-    return { total, activeTasks, lastEvent, counts, agentCounts };
+    return { total, activeTasks, lastEvent, counts, agentCounts, blockingCount };
   }, [cards]);
 
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8">
-      <header className="rounded-3xl border border-white/10 bg-slate-950/75 p-5 shadow-glow backdrop-blur-xl sm:p-6">
-        <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
-          <div className="max-w-3xl">
-            <p className="text-xs uppercase tracking-[0.3em] text-cyan-300">Hermes Mission Control</p>
-            <h1 className="font-display mt-3 text-3xl font-bold tracking-tight text-white sm:text-5xl">
-              חדר בקרה פנימי, עצמאי ומבודד לסוכני Hermes
-            </h1>
-            <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-300 sm:text-base">
-              רשת צמתים חיה המציגה את סוכני Hermes, אירועי טלמטריה, וקווי Handoff מונפשים מתוך Supabase Realtime.
-            </p>
-          </div>
+    <main className="dashboard-shell">
+      <div className="noise" />
+      <div className="orb orb-cyan" />
+      <div className="orb orb-violet" />
 
-          <div className="flex flex-wrap items-center gap-3">
-            <StatusPill connected={connected} />
-            <button
-              type="button"
-              onClick={() => void refresh()}
-              className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-slate-100 transition hover:bg-white/10"
-            >
-              רענון
-            </button>
-          </div>
+      <header className="panel command-bar">
+        <div className="bar-title">
+          <p className="eyebrow">Hermes Mission Control Center v3.0</p>
+          <h1>מרכז פיקוד רדיאלי חי לסוכני Hermes</h1>
+          <p className="bar-subtitle">
+            לוח בקרה רדיאלי חי, נקי ומהודק, עם פוקוס על ליבה מרכזית, זרימת Handoff, וקריאות מבצעית.
+          </p>
         </div>
 
-        <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-          <StatCard label="אירועים כוללים" value={overview.total} hint="agent_telemetry rows" />
-          <StatCard label="משימות פעילות" value={overview.activeTasks} hint="distinct task_id" />
-          <StatCard label="Thinking" value={overview.counts.Thinking} hint="sensing and analysis" />
-          <StatCard label="Handoff" value={overview.counts.Handoff} hint="handoff events" />
-          <StatCard label="Designer" value={overview.agentCounts.frontend_designer} hint="UI/UX Pro Max" />
+        <div className="bar-state">
+          <span className="state-label">System state</span>
+          <strong>{connected ? 'Realtime connected' : 'Connecting...'}</strong>
+          <small>
+            {lastSync ? formatTimestamp(lastSync) : 'pending'}
+            {overview.lastEvent ? `  •  ${overview.lastEvent.agentName}` : ''}
+          </small>
         </div>
 
-        <div className="mt-5 flex flex-wrap items-center gap-3 text-sm text-slate-400">
-          <span>Last sync: {lastSync ? formatTimestamp(lastSync) : 'pending'}</span>
-          {overview.lastEvent ? (
-            <span>Latest agent: <span className="text-slate-200">{overview.lastEvent.agentName}</span></span>
-          ) : null}
+        <div className="bar-controls">
+          <button
+            type="button"
+            onClick={() => void refresh()}
+            className="primary-button"
+          >
+            <span className="button-pulse" />
+            רענון עכשיו
+          </button>
+          <button
+            type="button"
+            onClick={() => setReelMode((value) => !value)}
+            className={`secondary-button ${reelMode ? 'is-active' : ''}`}
+          >
+            {reelMode ? 'Exit 9:16' : '9:16'}
+          </button>
         </div>
       </header>
 
       {loading ? <LoadingState /> : null}
       {error ? <ErrorBanner message={error} /> : null}
 
-      <TelemetryBoard cards={cards} />
-
-      <footer className="pb-2 text-center text-xs text-slate-500">
-        Built for secure operational awareness and live graph visibility.
-      </footer>
+      <section className="panel" style={{ padding: 0 }}>
+        <TelemetryBoard cards={cards} overview={overview} />
+      </section>
     </main>
-  );
-}
-
-function StatusPill({ connected }: { connected: boolean }) {
-  return (
-    <div className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium ${connected ? 'border-emerald-400/30 bg-emerald-500/10 text-emerald-200' : 'border-amber-400/30 bg-amber-500/10 text-amber-100'}`}>
-      <span className={`h-2.5 w-2.5 rounded-full ${connected ? 'bg-emerald-400' : 'bg-amber-300 animate-pulse'}`} />
-      {connected ? 'Realtime connected' : 'Connecting...'}
-    </div>
-  );
-}
-
-function StatCard({ label, value, hint }: { label: string; value: number; hint: string }) {
-  return (
-    <div className="rounded-2xl border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.06),rgba(255,255,255,0.03))] p-4 shadow-[0_0_0_1px_rgba(255,255,255,0.02)] backdrop-blur-xl">
-      <p className="text-xs uppercase tracking-[0.2em] text-slate-400">{label}</p>
-      <p className="font-display mt-3 text-3xl font-bold text-white tabular-nums">{value}</p>
-      <p className="mt-2 text-sm text-slate-400">{hint}</p>
-    </div>
   );
 }
 
 function LoadingState() {
   return (
-    <div className="rounded-3xl border border-white/10 bg-white/5 p-6 text-slate-300">
+    <div className="panel" style={{ padding: '18px 22px', color: 'var(--muted)' }}>
       טוען נתוני טלמטריה חיים מהמסד...
     </div>
   );
@@ -108,9 +97,9 @@ function LoadingState() {
 
 function ErrorBanner({ message }: { message: string }) {
   return (
-    <div className="rounded-3xl border border-rose-400/20 bg-rose-500/10 p-5 text-rose-100">
+    <div className="panel" style={{ padding: '18px 22px', borderColor: 'rgba(251, 113, 133, 0.26)', background: 'rgba(127, 29, 29, 0.28)', color: '#ffe4e6' }}>
       <p className="text-sm font-semibold">שגיאת חיבור</p>
-      <p className="mt-1 text-sm leading-6 text-rose-100/90">{message}</p>
+      <p style={{ marginTop: 6, fontSize: '0.94rem', lineHeight: 1.6 }}>{message}</p>
     </div>
   );
 }
